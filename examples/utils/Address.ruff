@@ -1,0 +1,21 @@
+/* Macros */
+
+// Identifies whether an address has contract code associated with it.
+IS_CONTRACT = () {
+    // Returns 0 if no code is associated with the address.
+    extcodesize
+}
+
+SEND_ETH = () {
+    0x00    // [0, amount, address]
+    0x00    // [0, 0, amount, address]
+    0x00    // [0, 0, 0, amount, address]
+    0x00    // [0, 0, 0, 0, amount, address]
+    dup5    // [amount, 0, 0, 0, 0, amount, address]
+    dup7    // [address, amount, 0, 0, 0, 0, amount]
+}
+
+MASK_ADDRESS = () {
+    0x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff
+	and
+}

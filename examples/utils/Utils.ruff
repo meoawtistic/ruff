@@ -1,0 +1,5 @@
+/* Macros */
+
+UTILS__NOT_PAYABLE = (error_location) {
+	callvalue error_location jumpi
+}

@@ -1,0 +1,292 @@
+/* Imports */
+include ../utils/Ownable.ruff
+include ../utils/Address.ruff
+include ../utils/Utils.ruff
+include ../utils/HashMap.ruff
+
+/* Events Signatures */
+TRANSFER_EVENT_SIGNATURE = 0xDDF252AD1BE2C89B69C2B068FC378DAA952BA7F163C4A11628F55A4DF523B3EF
+APPROVAL_EVENT_SIGNATURE = 0x8C5BE1E5EBEC7D5BD14F71427D1E84F3DD0314C0F7B2291E5B200AC8C7C3B925
+APPROVAL_FOR_ALL_EVENT_SIGNATURE = 0x17307EAB39AB6107E8899845AD3D59BD9653F200F220920489CA2B5937696C31
+
+/* Storage Slots */
+OWNER_LOCATION = 1              // ownerOf
+BALANCE_LOCATION = 2            // balanceOf
+SINGLE_APPROVAL_LOCATION = 3    // getApproved
+SYMBOL_LOCATION = 4
+NAME_LOCATION = 5
+
+/* Constructor */
+CONSTRUCTOR = () {
+    // Set msg.sender as the owner of the contract.
+    OWNABLE_CONSTRUCTOR()
+}
+
+/// >>>>>>>>>>>>>>>>>>>>>  VIEW FUNCTIONS  <<<<<<<<<<<<<<<<<<<<<< ///
+
+BALANCE_OF = () {
+    0x04 calldataload                               // [account]
+    BALANCE_LOCATION LOAD_ELEMENT_FROM_KEYS(0x00)   // [balance]
+    0x00 mstore                                     // []
+    0x20 0x00 return                                // []
+}
+
+OWNER_OF = () {
+    0x04 calldataload                               // [tokenId]
+    OWNER_LOCATION LOAD_ELEMENT_FROM_KEYS(0x00)     // [owner]
+    0x00 mstore                                     // []
+    0x20 0x00 return                                // []
+}
+
+IS_APPROVED_FOR_ALL = () {
+    0x24 calldataload               // [to]
+    0x04 calldataload               // [from, to]
+    LOAD_ELEMENT_FROM_KEYS(0x00)    // [value]
+    
+    0x00 mstore
+    0x20 0x00 return
+}
+
+GET_APPROVED = () {
+    0x04 calldataload               // [tokenId]
+    SINGLE_APPROVAL_LOCATION
+    LOAD_ELEMENT_FROM_KEYS(0x00)    // [spender]
+    0x00 mstore
+    0x20 0x00 return
+}
+
+NAME = () { 0x00 0x00 revert }
+
+SYMBOL = () { 0x00 0x00 revert }
+
+TOKEN_URI = () { 0x00 0x00 revert }
+
+SUPPORTS_INTERFACE = () { 0x00 0x00 revert }
+
+/// >>>>>>>>>>>>>>>>>>>>>  EXTERNAL FUNCTIONS  <<<<<<<<<<<<<<<<<<<<<< ///
+
+/* Transfer Functions */
+TRANSFER_TAKE_FROM = (error) {
+    // input stack [from, to, tokenId]
+
+    // check if from is the owner of the token
+    dup1                                            // [from, from, to, tokenId]
+    dup4                                            // [tokenId, from, from, to, tokenId]
+    OWNER_LOCATION LOAD_ELEMENT_FROM_KEYS(0x00)     // [owner, from, from, to, tokenId]
+    swap2                                           // [from, owner, from, to, tokenId]
+    eq                                              // [from_is_owner, from, to, tokenId]
+    cont jumpi                                      // [from, to, tokenId]
+        error jump
+    cont:
+
+    // check if msg.sender == from
+    dup1 caller                                     // [msg.sender, from, from, to, tokenId]
+    eq                                              // [from_is_msg.sender, from, to, tokenId]
+    is_authorized jumpi                             // [from, to, tokenId]
+
+    // check if approved for all
+    caller dup2                                     // [from, msg.sender, from, to, tokenId]
+    LOAD_ELEMENT_FROM_KEYS(0x00)                    // [is_approved_for_all, from, to, tokenId]
+    is_authorized jumpi                             // [from, to, tokenId]
+
+    // check if approved for tokenId
+    dup3                                            // [tokenId, from, to, tokenId]
+    SINGLE_APPROVAL_LOCATION                        // [SINGLE_APPROVAL_LOCATION, tokenId, from, to, tokenId]
+    LOAD_ELEMENT_FROM_KEYS(0x00)                    // [address_approved_for_tokenId, from, to, tokenId]
+    caller eq                                       // [msg.sender_approved_for_tokenId, from, to, tokenId]
+    is_authorized jumpi                             // [from, to, tokenId]
+        error jump
+    is_authorized:
+
+    // update balance of from
+    0x01 dup2                                       // [from, 1, from, to, tokenId]
+    BALANCE_LOCATION LOAD_ELEMENT_FROM_KEYS(0x00)   // [balance, 1, from, to, tokenId]
+    sub dup2                                        // [from, balance-1, from, to, tokenId]
+    BALANCE_LOCATION
+    STORE_ELEMENT_FROM_KEYS(0x00)                   // [from, to, tokenId]
+
+}
+
+TRANSFER_GIVE_TO = () {
+    // retrieve balance
+    // input stack:                 // [from, to, tokenId]
+    dup2                            // [to, from, to, tokenId]
+	BALANCE_LOCATION
+    LOAD_ELEMENT_FROM_KEYS(0x00)    // [balance, from, to, tokenId]
+    0x01 add                        // [balance+1, from, to, tokenId]
+
+    // update balance
+	dup3                            // [to, balance+1, from, to, tokenId]
+    BALANCE_LOCATION
+    STORE_ELEMENT_FROM_KEYS(0x00)   // [from, to, tokenId]
+
+    // update ownerOf
+    dup2                            // [to, from, to, tokenId]
+    dup4                            // [tokenId, to, from, to, tokenId]
+    OWNER_LOCATION
+    STORE_ELEMENT_FROM_KEYS(0x00)   // [from, to, tokenId]
+
+    // update approval
+    0x00 dup4                       // [tokenId, address(0), from, to, tokenId]
+    SINGLE_APPROVAL_LOCATION
+    STORE_ELEMENT_FROM_KEYS(0x00)   // [from, to, tokenId]
+}
+
+APPROVE = () {
+    // get owner
+    0x24 calldataload dup1          // [tokenId, tokenId]
+    OWNER_LOCATION
+    LOAD_ELEMENT_FROM_KEYS(0x00)    // [owner, tokenId]
+    dup1 caller                     // [msg.sender, owner, owner, tokenId]
+    eq                              // [is_sender_owner, owner, tokenId]
+
+    // check if approved for all
+    caller dup3                     // [owner, msg.sender, is_sender_owner, owner, tokenId]
+    LOAD_ELEMENT_FROM_KEYS(0x00)    // [is_approved_for_all, is_sender_owner, owner, tokenId]]
+    or cont jumpi                   // [owner, tokenId]
+        error jump
+    cont:
+
+    // store approval
+    0x04 calldataload dup1 dup4     // [tokenId, spender, spender, owner, tokenId]
+    SINGLE_APPROVAL_LOCATION
+    STORE_ELEMENT_FROM_KEYS(0x00)   // [spender, owner, tokenId]
+    swap1                           // [owner, spender, tokenId]
+
+    // emit the approval event
+    APPROVAL_EVENT_SIGNATURE                        // [sig, owner, spender, tokenId]
+    0x00 0x00                                       // [0, 0, sig, owner, spender, tokenId]
+    log4                                            // []
+
+    stop
+    error:
+        0x00 0x00 revert
+}
+
+SET_APPROVAL_FOR_ALL = () {
+    0x24 calldataload                               // [approved]
+    0x04 calldataload                               // [operator, approved]
+    caller                                          // [msg.sender, operator, approved]
+
+    STORE_ELEMENT_FROM_KEYS(0x00)                   // []
+
+    0x04 calldataload                               // [operator]
+    caller                                          // [msg.sender, operator]
+    0x24 calldataload                               // [approved, msg.sender, operator]
+    // emit the approval event
+    0x00 mstore                                     // [owner, operator]
+    APPROVAL_FOR_ALL_EVENT_SIGNATURE                // [sig, owner, operator]
+    0x00 0x00                                       // [0, 32, sig, owner, operator]
+    log4                                            // []
+
+    stop
+    error:
+        0x00 0x00 revert
+}
+
+TRANSFER_FROM = () {
+    // Setup the stack for the transfer function.
+    0x44 calldataload   // [tokenId]
+    0x24 calldataload   // [to, tokenId]
+    0x04 calldataload   // [from, to, tokenId]
+
+    TRANSFER_TAKE_FROM(error)                       // [from, to, tokenId]
+    TRANSFER_GIVE_TO()                              // [from, to, tokenId]
+
+    // Emit the transfer event.
+    TRANSFER_EVENT_SIGNATURE                        // [sig,from, to, tokenId]
+    0x20 0x00                                       // [0, 0, sig, from, to, tokenId]
+    log4                                            // []
+
+    stop
+    // Error destination.
+    error:
+        0x00 0x00 revert
+}
+
+SAFE_TRANSFER_FROM = () { 0x00 0x00 revert }
+
+SAFE_TRANSFER_FROM_WITH_DATA = () { 0x00 0x00 revert }
+
+/* Mint Functions */
+MINT = () {
+    // Ensure that the sender is the owner of the contract.
+    ONLY_OWNER()
+
+    // Setup the stack for the mint function.
+    0x24 calldataload                               // [tokenId]
+    0x04 calldataload                               // [to, tokenId]
+    0x00                                            // [from (0x00), to, tokenId]
+    dup3                                            // [tokenId, from (0x00), to, tokenId]
+
+    //check no one owns it
+    OWNER_LOCATION LOAD_ELEMENT_FROM_KEYS(0x00)     // [owner, from (0x00), to, tokenId]
+    iszero cont jumpi
+        error jump
+
+    cont:
+
+    // Give tokens to the recipient.
+    TRANSFER_GIVE_TO()                              // [from (0x00), to, tokenId]
+
+    // Emit the transfer event.
+    TRANSFER_EVENT_SIGNATURE                        // [sig, from (0x00), to, tokenId]
+    0x00 0x00                                       // [0, 0, sig, from (0x00), to, tokenId]
+    log4                                            // []
+
+    stop
+
+    error:
+        0x00 0x00 revert
+}
+
+// Main Macro
+MAIN = () {
+    // Identify which function is being called.
+    0x00 calldataload 0xE0 shr
+    dup1 0xa9059cbb eq transferFrom jumpi
+    dup1 0x42842e0e eq safeTransferFrom jumpi
+    dup1 0xb88d4fde eq safeTransferFromWithData jumpi
+    dup1 0x095ea7b3 eq approve jumpi
+    dup1 0xa22cb465 eq setApprovalForAll jumpi
+    dup1 0x081812fc eq getApproved jumpi
+    dup1 0x40c10f19 eq mint jumpi
+    dup1 0x70a08231 eq balanceOf jumpi
+    dup1 0x6352211e eq ownerOf jumpi
+    dup1 0x06fdde03 eq name jumpi
+    dup1 0x95d89b41 eq symbol jumpi
+    dup1 0xc87b56dd eq tokenURI jumpi
+    dup1 0x01ffc9a7 eq supportsInterface jumpi
+    dup1 0xe985e9c5 eq isApprovedForAll jumpi
+
+
+
+    transferFrom:
+        TRANSFER_FROM()
+    safeTransferFrom:
+        SAFE_TRANSFER_FROM()    // not implemented yet
+    safeTransferFromWithData:
+        SAFE_TRANSFER_FROM_WITH_DATA()  // not implemented yet
+    mint:
+        MINT()
+    balanceOf:
+        BALANCE_OF()
+    approve:
+        APPROVE()
+    getApproved:
+        GET_APPROVED()
+    setApprovalForAll:
+        SET_APPROVAL_FOR_ALL()
+    name:
+        NAME()                  // not implemented yet
+    symbol:
+        SYMBOL()                // not implemented yet
+    tokenURI:
+        TOKEN_URI()             // not implemented yet
+    supportsInterface:
+        SUPPORTS_INTERFACE()    // not implemented yet
+    isApprovedForAll:
+        IS_APPROVED_FOR_ALL()
+    ownerOf:
+        OWNER_OF()
+}

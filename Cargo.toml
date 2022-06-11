@@ -1,0 +1,15 @@
+[package]
+name = "ruff"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+phf = { version = "0.10.1", default-features = false, features = ["macros"] }
+ethers = { version = "0.6.0" }
+uint = "0.9.3"
+regex = "1.5.5"
+evalexpr = "7"
+clap = { version = "3.1.18", features = ["derive", "cargo"] }
+hex = "0.4.3"
