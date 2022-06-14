@@ -392,7 +392,7 @@ fn prepare_compile_macro(
 
         let mut found = false;
 
-        let mut val = if let Some((_, q)) = time_machine.iter().find(|(_, (s, v))| s == a.1) {
+        let mut val = if let Some((_, q)) = time_machine.iter().find(|(_, (s, _v))| s == a.1) {
             found = true;
             q.1.clone()
         } else {
